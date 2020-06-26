@@ -1,0 +1,256 @@
+YM2149 player
+=============
+
+References
+----------
+
+http://www.irls.narod.ru/sncl/ay001.htm
+https://sudonull.com/post/24789-Arduino-ZX-Spectrum-AY-Player
+https://www.reddit.com/r/arduino/comments/3898g6/generating_14_mhz_clock_on_arduino/
+https://electronicfields.wordpress.com/2012/04/09/ym2149-sound-generator-arduino-fast-pin-switching/
+https://github.com/simondotm/ym2149f
+
+Pinout
+------
+
+               +----------+
+    Vss (GND) -|  1    40 |- Vcc (+5V)
+         N.C. -|  2    39 |- TEST 1
+          ACB -|  3    38 |- ACC
+          ACA -|  4    37 |- DA0
+         N.C. -|  5    36 |- DA1
+         IOB7 -|  6    35 |- DA2
+         IOB6 -|  7    34 |- DA3
+         IOB5 -|  8    33 |- DA4
+         IOB4 -|  9    32 |- DA5
+         IOB3 -| 10    31 |- DA6
+         IOB2 -| 11    30 |- DA7
+         IOB1 -| 12    29 |- BC1
+         IOB0 -| 13    28 |- BC2
+         IOA7 -| 14    27 |- BDIR
+         IOA6 -| 15    26 |- /SEL
+         IOA5 -| 16    25 |- A8
+         IOA4 -| 17    24 |- /A9
+         IOA3 -| 18    23 |- /RESET
+         IOA2 -| 19    22 |- CLOCK
+         IOA1 -| 20    21 |- IOA0
+               +----------+
+
+Fixed pins
+----------
+
+| Pin    | Connection | Note                 |
+|--------|------------|----------------------|
+| Vss    | GND        |                      |
+| Vcc    | +5V        |                      |
+| IOA0-7 | N.C.       | pullup               |
+| IOB0-7 | N.C.       | pullup               |
+| A8     | +5V        | pullup               |
+| /A9    | GND        | pulldown             |
+| /SEL   | +5V        | pullup, Master clock |
+| BC2    | +5V        |                      |
+| TEST 1 | N.C.       |                      |
+
+Controlled pins
+---------------
+
+BDIR
+BC1
+
+| BC2 (fixed) | BDIR | BC1 | PSG function  |
+|-------------|------|-----|---------------|
+|           1 |    0 |   0 | Inactive      |
+|           1 |    0 |   1 | Read from PSG |
+|           1 |    1 |   0 | Write to PSG  |
+|           1 |    1 |   1 | Latch Address |
+
+DA0-7
+
+| Chip Select             | Register Select |
+| /A9  A8 DA7 DA6 DA5 DA4 | DA3 DA2 DA1 DA0 |
+|  0   1   0   0   0   0  |  X   X   X   X  |
+
+/RESET
+CLOCK
+
+| Platform    | Clock speed |
+|-------------|-------------|
+| Atari ST    | 2 MHz       |
+| Amstrad CPC | 1 MHz       |
+| MSX         | 1.79 MHz    |
+| ZX Spectrum | 1.77 MHz    |
+
+Output pins
+-----------
+
+ACA
+ACB
+ACC
+
+~1Vpp, ~2V DC on YM2149
+
+Audio mixing
+------------
+
+### Option 1
+
+    ACA--+
+         |
+    ACB--+--+--------Vout
+         |  |
+    ACC--+  +--[1K]--GND
+
+### Option 2
+
+    ACA--[1K]--+
+               |
+    ACB--[1K]--+--+---------Vout
+               |  |
+    ACC--[1K]--+  +--[100]--GND
+
+### Option 3 (https://sudonull.com/post/24789-Arduino-ZX-Spectrum-AY-Player)
+
+                    +--[220]--GND
+                    |
+    ACA--[3K]-------+            +--VoutL
+                    |            v
+         +--[5.6K]--+--|10uF|--[22K]--GND
+         |
+    ACB--+
+         |
+         +--[5.6K]--+--|10uF|--[22K]--GND
+                    |            ^
+    ACC--[3K]-------+            +--VoutR
+                    |
+                    +--[220]--GND
+
+### Option 4 (http://www.irls.narod.ru/sncl/ay001.htm)
+
+    ACA--+--------[10K]--+--VoutL
+         |               |
+         +--[3.3K]--GND  |
+                         |
+               +--[15K]--+
+               |
+    ACB--+-----+
+         |     |
+         |     +--[15K]--+
+         |               |
+         +--[3.3K]--GND  |
+                         |
+    ACC--+--------[10K]--+--VoutR
+         |
+         +--[3.3K]--GND
+
+Audio amplification
+-------------------
+
+### Option 1
+
+    Vout--+--[10K]--|100uF(--{AMP}
+          |
+          +--[1K]---GND
+
+### Option 2
+
+                        GND--+-+--|10uF|--+
+                             | |          |
+                             | | +--------+--+5V
+                             | | |        |
+                             | | |        +--|0.1uF|--GND
+                             | | |
+                          +---------+
+                          |  2 4 6  |
+    Vout--[5K]--+--|2uF|--|3 LM386 5|--+--|250uF|--Vspeaker
+                |         +---------+  |
+                |                      |
+                |                      |
+                +--[500]----GND        +--|0.05uF|--[10]--GND
+                |
+                +--|300pF|--GND
+
+### Option 3 (cf. option 3 audio mixing)
+
+    VoutL--+ +--VoutR
+           | |
+    GND--+ | | +--GND
+         | | | |
+        +-------+
+        |4 3 2 1|
+        |TDA7050|
+        |5 6 7 8|
+        +-------+
+         | | | |
+    GND--+ | | +--+3.3V
+           | | |
+           | | +--|100uF(--GND
+           | | 
+           | +--|100uF(--VR
+           | 
+           +--|100uF(--VL
+
+BOM
+
+    1x microcontroller
+    1x 5V supply
+    1x YM2149
+1x YM2149 supply capacitor
+    3x 1K
+    1x 100
+
+1x LM386
+1x 10
+1x 500
+1x 5K
+1x 300pF
+1x 0.05F
+1x 0.1uF
+1x 2uF
+1x 10uF
+1x 250uF
+
+SD Card
+-------
+
+Chiptune data
+-------------
+
+YMR = raw AY/YM registers logged at 50/60Hz
+
+### YM format
+
+http://leonard.oxg.free.fr/ymformat.html
+ftp://ftp.modland.com/pub/documents/format_documentation/Atari%20ST%20Sound%20Chip%20Emulator%20YM1-6%20(.ay,%20.ym).txt
+
+### SNDH format
+
+ 
+### Conversions
+
+| Conversion | Reference                            |
+|------------|--------------------------------------|
+| YM to YMR  | https://github.com/simondotm/ym2149f |
+
+Warning
+Order of pin transition is important to avoid triggering write mode
+
+Pins needed
+8   D0-D7
+2   BDIR BC1
+1   /RESET
+1   CLOCK
+12
+4   SPI
+16
+2   I2C
+18
+
+Chosen audio output
+-------------------
+
+ACA--[1K]--+                +----Vout
+           |                v
+ACB--[1K]--+--+--|220uF(--[10K]--GND
+           |  |
+ACC--[1K]--+  +--[200]--GND
+
